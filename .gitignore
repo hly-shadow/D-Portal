@@ -1,0 +1,28 @@
+# --- Python 编译和缓存文件 ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+*.log
+logs/
+
+# --- PyCharm / IDE 配置文件 ---
+.idea/
+*.iml
+
+# --- Conda / Python 虚拟环境 ---
+venv/
+env/
+.venv/
+
+# --- 构建和打包产物 ---
+build/
+dist/
+*.spec
+
+# --- 操作系统临时文件 ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
