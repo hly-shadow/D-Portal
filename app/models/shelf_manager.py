@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 from typing import List, Dict, overload, Union
 
 from app.models.data_model import ShelfItem

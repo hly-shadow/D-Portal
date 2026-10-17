@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 from enum import Enum, auto
 
 from PySide6.QtCore import QObject, QTimer, QPropertyAnimation, QRect, QEasingCurve
@@ -138,7 +140,6 @@ class EdgeAutoDockManager(QObject):
                 self.show_window(screen_geo)
         else:
             # ==================== 状态 B：显示时，检测是否需要隐藏 ====================
-
             # 核心逻辑：只有当鼠标既不在窗口内，又不在边缘热区时(即真正移开屏幕边缘了),才执行隐藏
             if not is_mouse_in_window and not is_mouse_in_hot_zone:
                 self.hide_window(screen_geo)

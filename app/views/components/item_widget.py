@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 from typing import override
 
 from PySide6.QtGui import QMouseEvent
@@ -6,6 +8,7 @@ from PySide6.QtWidgets import QSizePolicy, QHBoxLayout, QLabel, QFileIconProvide
 from qfluentwidgets import TransparentToolButton, FluentIcon, CardWidget
 
 from app.models.data_model import ShelfItem
+from app.views.theme import get_theme_colors
 from app.views.components.common_widget import ElidedLabel
 
 class ShelfItemWidget(CardWidget):
@@ -17,10 +20,12 @@ class ShelfItemWidget(CardWidget):
         super().__init__(parent)
         self.item = item
         self.is_selected = False
+        self.is_hovered = False
         self._press_pos = None
         self.setFixedHeight(65)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._init_ui()
+        self.update_style()
 
     def _init_ui(self):
         main_layout = QHBoxLayout(self)
@@ -38,7 +43,8 @@ class ShelfItemWidget(CardWidget):
         icon_label.setPixmap(icon.pixmap(32,32))
 
         # 中间: 文件名(支持省略过长的文件名)
-        name_label = ElidedLabel(self.item.name)
+        self.name_label = ElidedLabel(self.item.name)
+        self.name_label.setObjectName("ShelfItemNameLabel")
 
         delete_btn = TransparentToolButton()
         delete_btn.setIcon(FluentIcon.DELETE)
@@ -46,14 +52,14 @@ class ShelfItemWidget(CardWidget):
         delete_btn.clicked.connect(lambda :self.delete_signal.emit(self.item))
 
         main_layout.addWidget(icon_label)
-        main_layout.addWidget(name_label, 1)
+        main_layout.addWidget(self.name_label, 1)
         main_layout.addWidget(delete_btn)
 
     @override
     def mousePressEvent(self, e: QMouseEvent):
         if e.button() == Qt.MouseButton.RightButton:
             self.is_selected = not self.is_selected
-            self._update_style()
+            self.update_style()
             self.toggle_selection()
             e.accept()
         elif e.button() == Qt.MouseButton.LeftButton:
@@ -78,26 +84,45 @@ class ShelfItemWidget(CardWidget):
         # 将当前数据和最新的选中状态一起通过信号发射出去
         self.selection_signal.emit((self.item, self.is_selected))
 
-    def _update_style(self):
-        """根据 is_selected 的状态改变卡片样式"""
-        if self.is_selected: # 选中状态
-            style = """
-                ShelfItemWidget {
-                    background-color: rgba(0, 120, 212, 15%);
-                    border: 2px solid #0078D4;
-                    border-radius: 8px;
-                }
-            """
+    def update_style(self):
+        colors = get_theme_colors()
+        if self.is_selected:
+            bg = colors["selected_bg"]
+            border = colors["selected_border"]
+        elif self.is_hovered:
+            bg = colors["card_hover_bg"]
+            border = colors["selected_border"]
         else:
-            style = """
-                ShelfItemWidget {
-                    background-color: #F9F9F9;
-                    border: 1px solid #E1E1E1;
-                    border-radius: 8px;
-                }
-                ShelfItemWidget:hover {
-                    background-color: #F3F3F3;
-                    border: 1px solid #C7C7C7;
-                }
-            """
-        self.setStyleSheet(style)
+            # 支持鼠标悬浮判断 (可在 enterEvent/leaveEvent 中切换状态)
+            bg = colors["card_bg"]
+            border = colors["card_border"]
+
+        text_color = colors["text_color"]
+        font_family = colors["font_family"]
+
+        self.setStyleSheet(f"""
+            ShelfItemWidget {{
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: 6px;
+            }}
+            ShelfItemWidget #ShelfItemNameLabel {{
+                color: {text_color};
+                font-family: {font_family};
+                font-size: 14px;
+                font-weight: bold;
+                background-color: transparent;
+            }}
+        """)
+    @override
+    def enterEvent(self, e):
+        super().enterEvent(e)
+        self.is_hovered = True
+        self.update_style()
+        e.accept()
+    @override
+    def leaveEvent(self, e):
+        super().leaveEvent(e)
+        self.is_hovered = False
+        self.update_style()
+        e.accept()

@@ -1,84 +1,129 @@
 import pytest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+from PySide6.QtCore import QPoint, Qt, QUrl
+from PySide6.QtWidgets import QApplication
 
-from app.models.shelf_manager import ShelfManager
 from app.models.data_model import ShelfItem, ItemType
 from app.controllers.shelf_controller import ShelfController
-from app.views.shelf_window import ShelfWindow
+
+
+@pytest.fixture(scope="session")
+def qapp():
+    """确保整个测试会话中存在一个 QApplication 实例"""
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication([])
+    yield app
+
+
+@pytest.fixture
+def mock_shelf_manager():
+    """Mock ShelfManager"""
+    manager = MagicMock()
+    manager.count.return_value = 0
+    return manager
 
 
 @pytest.fixture
 def mock_window():
-    """使用 MagicMock 虚拟一个 ShelfWindow，避免单元测试时弹窗"""
-    return MagicMock(spec=ShelfWindow)
+    """Mock ShelfWindow 及其关联组件"""
+    window = MagicMock()
+    # 模拟信号连接
+    window.item_delete_requested = MagicMock()
+    window.select_requested = MagicMock()
+    window.top_component.close_requested = MagicMock()
+    return window
 
 
 @pytest.fixture
-def shelf_manager():
-    """提供一个真实的 ShelfManager 实例（Model层）"""
-    return ShelfManager()
+def controller(qapp, mock_shelf_manager, mock_window):
+    """初始化 ShelfController 实例"""
+    return ShelfController(mock_shelf_manager, mock_window)
 
 
-@pytest.fixture
-def controller(shelf_manager, mock_window):
-    """初始化控制器实例"""
-    return ShelfController(shelf_manager, mock_window)
+def test_handle_incoming_data_urls(controller, mock_shelf_manager, mock_window):
+    """测试处理传入的 URL 数据（文件/目录拖入）"""
+    # 准备 MIME 数据
+    mock_mime = MagicMock()
+    mock_mime.hasUrls.return_value = True
+
+    # 模拟 QUrl
+    mock_url = MagicMock(spec=QUrl)
+    # 假设拖入了一个虚拟路径
+    mock_url.toLocalFile.return_value = "/path/to/test_file.txt"
+    mock_mime.urls.return_value = [mock_url]
+
+    # 模拟 manager.add_item_filter 返回添加成功的项
+    added_item = ShelfItem(name="test_file.txt", path="/path/to/test_file.txt", item_type=ItemType.FILE)
+    mock_shelf_manager.add_item_filter.return_value = [added_item]
+    mock_shelf_manager.count.return_value = 1
+
+    # 执行
+    controller.handle_incoming_data(mock_mime)
+
+    # 验证
+    mock_shelf_manager.add_item_filter.assert_called_once()
+    mock_window.render_items.assert_called_once_with([added_item])
+    mock_window.update_count.assert_called_once_with(1)
 
 
-def test_controller_initialization(shelf_manager, mock_window):
-    """测试控制器初始化时是否会自动刷新一次视图"""
-    controller = ShelfController(shelf_manager, mock_window)
-
-    # 验证初始化时，视图的 render_items 收到的空数据应该是个字典 {}
-    mock_window.render_items.assert_called_once_with({}, set())
-    assert controller._selected_keys == set()
+def test_handle_incoming_data_empty(controller, mock_shelf_manager):
+    """测试传入空的 MIME 数据"""
+    controller.handle_incoming_data(None)
+    mock_shelf_manager.add_item_filter.assert_not_called()
 
 
-def test_handle_item_delete(controller, shelf_manager, mock_window):
-    """测试控制器处理删除项的逻辑"""
-    item = ShelfItem(name="test.txt", item_type=ItemType.FILE, path="/test.txt")
-    shelf_manager.add_item(item)
-    assert shelf_manager.count() == 1
+def test_handle_item_delete(controller, mock_shelf_manager, mock_window):
+    """测试删除单项逻辑"""
+    item = ShelfItem(name="test.txt", path="/test.txt", item_type=ItemType.FILE)
+    mock_shelf_manager.count.return_value = 0
 
-    # 触发删除
     controller.handle_item_delete(item)
 
-    # 验证 manager 中是否成功移除了该项
-    assert shelf_manager.count() == 0
+    mock_shelf_manager.remove_item.assert_called_once_with(item)
+    mock_window.remove_item_widget_by_data.assert_called_once_with(item)
+    mock_window.update_count.assert_called_once_with(0)
 
 
-def test_handle_item_selected_toggle(controller, mock_window):
-    """测试右键点击选中与取消选中的状态切换逻辑"""
-    item = ShelfItem(name="doc.pdf", item_type=ItemType.FILE, path="/doc.pdf")
-    key = item.get_unique_key()
+def test_handle_item_selection_changed(controller):
+    """测试选中状态的维护（多选集合）"""
+    item1 = ShelfItem(name="1.txt", path="/1.txt", item_type=ItemType.FILE)
+    item2 = ShelfItem(name="2.txt", path="/2.txt", item_type=ItemType.FILE)
 
-    # 1. 第一次点击：选中
-    controller.handle_item_selected(item)
+    # 选中 item1 和 item2
+    controller.handle_item_selection_changed(item1, True)
+    controller.handle_item_selection_changed(item2, True)
+    assert item1 in controller._selected
+    assert item2 in controller._selected
+    assert len(controller._selected) == 2
 
-    assert key in controller._selected_keys
-    # 验证是否指挥 window 更新了对应 key 的选中状态（传 True）
-    mock_window.update_selected_state.assert_called_with(key, True)
-
-    # 2. 第二次点击：取消选中
-    controller.handle_item_selected(item)
-
-    assert key not in controller._selected_keys
-    # 验证是否指挥 window 更新了对应 key 的选中状态（传 False）
-    mock_window.update_selected_state.assert_called_with(key, False)
+    # 取消选中 item1
+    controller.handle_item_selection_changed(item1, False)
+    assert item1 not in controller._selected
+    assert item2 in controller._selected
+    assert len(controller._selected) == 1
 
 
-def test_refresh_view(controller, shelf_manager, mock_window):
-    """测试手动刷新视图是否能正确将数据传递给 View"""
-    item = ShelfItem(name="image.png", item_type=ItemType.FILE, path="/image.png")
-    shelf_manager.add_item(item)
+def test_handle_drag_end(controller):
+    """测试拖拽结束清理状态"""
+    controller._drag_pos = QPoint(10, 10)
+    controller.handle_drag_end()
+    assert controller._drag_pos is None
 
-    controller._selected_keys.add(item.get_unique_key())
 
-    # 调用刷新
-    controller.refresh_view()
+@patch("app.controllers.shelf_controller.QDrag")
+def test_handle_item_drag_out_single(mock_qdrag_class, controller, mock_shelf_manager, mock_window):
+    """测试单项向外拖拽（非多选或单选拖拽，复制后不删除原文件 - 假设 DropAction 为 CopyAction 且触发删除逻辑取决于实现）"""
+    # 注意：根据你的源码，只要 drop_action != IgnoreAction，就会执行删除原文件逻辑。
+    mock_drag_instance = mock_qdrag_class.return_value
+    mock_drag_instance.exec.return_value = Qt.DropAction.CopyAction
 
-    # 验证 window.render_items 收到了字典和选中 keys 集合
-    mock_window.render_items.assert_called_with(
-        shelf_manager.items,  # 这里是字典
-        controller._selected_keys
-    )
+    item = ShelfItem(name="file.txt", path="/file.txt", item_type=ItemType.FILE)
+
+    # 执行外发拖拽
+    controller.handle_item_drag_out(item, QPoint(0, 0))
+
+    # 验证是否调用了底层删除及视图移除
+    mock_shelf_manager.remove_item.assert_called_once_with(item)
+    mock_window.middle_component.remove_item_widget.assert_called_once_with(item)
+    mock_window.footer_component.update_count.assert_called_once_with(mock_shelf_manager.count())

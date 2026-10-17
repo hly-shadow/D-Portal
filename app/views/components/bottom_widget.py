@@ -1,6 +1,10 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QVBoxLayout
-from qfluentwidgets import CardWidget, HorizontalSeparator, BodyLabel
+from qfluentwidgets import CardWidget, BodyLabel
+
+from app.views.theme import get_theme_colors
 
 
 class FooterComponent(CardWidget):
@@ -14,16 +18,13 @@ class FooterComponent(CardWidget):
     def _init_ui(self):
         # 设置内部布局
         bottom_layout = QVBoxLayout(self)
-        bottom_layout.setContentsMargins(16, 12, 16, 12)
+        bottom_layout.setContentsMargins(10, 5, 10, 5)
         bottom_layout.setSpacing(10)
 
-        # 初始化分割线和标签
-        h_sep = HorizontalSeparator(self)
         self.count_label = BodyLabel(self)
         self.count_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
 
         # 组装布局
-        bottom_layout.addWidget(h_sep)
         bottom_layout.addWidget(self.count_label)
 
         # 默认初始显示 0 items
@@ -33,3 +34,13 @@ class FooterComponent(CardWidget):
         """对外暴露的方法：用于更新统计数量"""
         text = f"{count} item" if count == 1 else f"{count} items"
         self.count_label.setText(text)
+
+    def apply_theme_style(self):
+        colors = get_theme_colors()
+        self.setStyleSheet(f"""
+            FooterComponent {{
+                background-color: {colors["panel_bg"]};
+                border: 1px solid {colors["panel_border"]};
+                border-radius: {colors["radius"]};
+            }}
+        """)

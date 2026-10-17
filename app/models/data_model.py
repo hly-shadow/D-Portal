@@ -1,3 +1,5 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 import sys, os
 import hashlib
 import urllib.parse
@@ -13,6 +15,7 @@ class ItemType(Enum):
     DIRECTORY = "directory"
     URL = "url"
     TEXT = "text"
+    UNKNOWN = "unknown"
 
 @dataclass(frozen=True)
 class ShelfItem:
@@ -29,7 +32,7 @@ class ShelfItem:
     def __post_init__(self):
         # 初始化时预计算文本哈希（如果有内容）
         if self.item_type == ItemType.TEXT and self.content:
-            self._text_hash = hashlib.md5(self.content.encode("utf-8")).hexdigest()
+            object.__setattr__(self, '_text_hash', hashlib.md5(self.content.encode("utf-8")).hexdigest())
 
     def get_unique_key(self) -> str:
         """根据不同的类型返回对应的唯一标识，用于去重"""

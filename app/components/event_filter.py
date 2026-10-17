@@ -1,9 +1,7 @@
-from pathlib import Path
-from PySide6.QtCore import QObject, QEvent, Qt, QFileInfo
-from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import QFileIconProvider
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+from PySide6.QtCore import QObject, QEvent, Qt
 
-from app.models.data_model import ItemType, ShelfItem
 from app.views.components.top_widget import TopComponent
 
 
@@ -28,6 +26,7 @@ class MainWindowEventFilter(QObject):
             handler(event)
             return True
         return super().eventFilter(obj, event)
+
 
     def _on_drag_enter(self, event):
         event.setDropAction(Qt.DropAction.CopyAction)
@@ -62,7 +61,8 @@ class MainWindowEventFilter(QObject):
             self.controller.handle_drag_end()
             event.accept()
 
-    def _is_child_of(self, widget, target_class):
+    @staticmethod
+    def _is_child_of(widget, target_class):
         """辅助函数: 检查某个组件是否属于指定类型的子组件"""
         while widget:
             if isinstance(widget, target_class):

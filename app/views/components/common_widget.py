@@ -4,17 +4,18 @@
 通用基础组件
 """
 from typing import override, Tuple
-from PySide6.QtCore import Qt, QPropertyAnimation
-from PySide6.QtGui import QMouseEvent, QFontMetrics
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFontMetrics
 from PySide6.QtWidgets import QLabel, QHBoxLayout, QVBoxLayout
 from qfluentwidgets import CardWidget
+
 
 class DraggableCardWidget(CardWidget):
     """支持拖拽宿主窗口移动的通用卡片容器(支持自定义布局方向)"""
     def __init__(
             self,
             orientation: Qt.Orientation = Qt.Orientation.Horizontal,
-            margins: Tuple[int, int, int, int] = (16,12,8,12),
+            margins: Tuple[int, int, int, int] = (12,10,12,10),
             spacing: int = 8,
             parent=None
     ):

@@ -1,4 +1,5 @@
-import os
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 from pathlib import Path
 from PySide6.QtCore import Qt, QPoint, QMimeData, QUrl, QFileInfo
 from PySide6.QtGui import QDrag
@@ -32,6 +33,7 @@ class ShelfController:
                     continue
                 file_info = QFileInfo(file_path)
                 file_name = Path(file_path).name
+                item_type = ItemType.UNKNOWN
                 if file_info.isDir():
                     item_type=ItemType.DIRECTORY
                 elif file_info.isFile():
@@ -55,7 +57,8 @@ class ShelfController:
         mime_data = event.mimeData()
         self.handle_incoming_data(mime_data)
 
-    def handle_window_close(self):
+    @staticmethod
+    def handle_window_close():
         QApplication.quit()
 
     def handle_item_delete(self, item: ShelfItem):
@@ -70,8 +73,6 @@ class ShelfController:
             self._selected.add(item)
         else:
             self._selected.discard(item)
-
-        print(len(self._selected))
 
     def handle_drag_start(self, pos: QPoint):
         # 记录鼠标点击位置相对窗口左上角的偏移, 防止窗口发生“瞬移”
@@ -95,12 +96,11 @@ class ShelfController:
 
     def handle_item_drag_out(self, dragged_item, pos):
         """
-            dragged_item: 当前被鼠标按住并触发拖拽的那个卡片所对应的数据
-            pos: 触发时的坐标
-            """
-        files_to_drag = []
+        dragged_item: 当前被鼠标按住并触发拖拽的那个卡片所对应的数据
+        pos: 触发时的坐标
+        """
         # 场景判断：
-        # 如果当前拖拽的这个项，本身就在你的多选集合里，且多选集合数量 > 1
+        # 如果当前拖拽的这个项，本身就在多选集合里，且多选集合数量 > 1
         if dragged_item in self._selected and len(self._selected) > 1:
             # 打包所有被选中的文件
             files_to_drag = list(self._selected)
@@ -121,24 +121,22 @@ class ShelfController:
         mime_data.setUrls(url_list)
         drag.setMimeData(mime_data)
 
-        # 执行拖拽动作（通常是复制动作 CopyAction）
+        # 执行拖拽动作(执行复制操作, 不会操作原文件)
         drop_action = drag.exec(Qt.DropAction.CopyAction, Qt.DropAction.CopyAction)
-        # 2. 判断拖拽是否成功完成（只要不是忽略/取消，就代表投递成功）
+        # 判断拖拽是否成功完成(只要不是忽略/取消，就代表投递成功)
         if drop_action != Qt.DropAction.IgnoreAction:
-            files_to_remove = []
             if dragged_item in self._selected and len(self._selected) > 1:
                 files_to_remove = list(self._selected)
             else:
                 files_to_remove = [dragged_item]
-            # 3. 遍历调用 shelf_manager 删除底层数据，并通知视图层移除对应卡片
+            # 遍历调用 shelf_manager 删除底层数据，并通知视图层移除对应卡片
             for item in files_to_remove:
-                # 假设你的 shelf_manager 有删除数据的方法
                 self.shelf_manager.remove_item(item)
 
                 # 通知视图层（MiddleComponent）销毁对应的 UI 卡片
                 self.window.middle_component.remove_item_widget(item)
-
-            # 4. 如果你用了多选集合，删除后顺便清空多选状态
+                self.window.footer_component.update_count(self.shelf_manager.count())
+            # 如果用了多选集合，删除后顺便清空多选状态
             self._selected.clear()
 
     def handle_drag_end(self):

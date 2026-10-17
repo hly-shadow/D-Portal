@@ -1,9 +1,10 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
 
 from PySide6.QtCore import Qt, Signal, QPoint
-from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QWidget
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 from qfluentwidgets import CardWidget, SingleDirectionScrollArea
 
-from app.models.data_model import ShelfItem
 from app.views.components.item_widget import ShelfItemWidget
 
 class MiddleComponent(CardWidget):
@@ -14,6 +15,7 @@ class MiddleComponent(CardWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._init_ui()
+        self.apply_theme_style()
 
     def _init_ui(self):
         main_layout = QVBoxLayout(self)
@@ -24,7 +26,7 @@ class MiddleComponent(CardWidget):
 
         self.item_container = QWidget()
         self.item_layout = QVBoxLayout(self.item_container)
-        self.item_layout.setContentsMargins(0,0,0,0)
+        self.item_layout.setContentsMargins(6,6,8,6)
         self.item_layout.setSpacing(8)
         self.item_layout.addStretch()
 
@@ -69,3 +71,22 @@ class MiddleComponent(CardWidget):
                 self.item_layout.insertWidget(index, item_card)
         finally:
             self.setUpdatesEnabled(True)
+
+    def apply_theme_style(self):
+        self.scroll_area.setStyleSheet(f"""
+            QScrollArea {{
+                background-color: transparent;
+                border: none;
+            }}
+            QScrollArea::viewport {{
+                background-color: transparent;
+            }}
+            QScrollArea > QWidget > QWidget {{
+                background-color: transparent;
+            }}
+
+        """)
+        for i in range(self.item_layout.count()):
+            widget = self.item_layout.itemAt(i).widget()
+            if widget and hasattr(widget, "update_style"):
+                widget.update_style()
