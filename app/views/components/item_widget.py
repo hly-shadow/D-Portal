@@ -2,7 +2,7 @@ from typing import override
 
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtCore import Qt, QPoint, QFileInfo, Signal
-from PySide6.QtWidgets import QSizePolicy, QHBoxLayout, QLabel, QFileIconProvider, QApplication
+from PySide6.QtWidgets import QSizePolicy, QHBoxLayout, QLabel, QFileIconProvider
 from qfluentwidgets import TransparentToolButton, FluentIcon, CardWidget
 
 from app.models.data_model import ShelfItem
@@ -53,7 +53,7 @@ class ShelfItemWidget(CardWidget):
     def mousePressEvent(self, e: QMouseEvent):
         if e.button() == Qt.MouseButton.RightButton:
             self.is_selected = not self.is_selected
-            self.set_selected_style()
+            self._update_style()
             self.toggle_selection()
             e.accept()
         elif e.button() == Qt.MouseButton.LeftButton:
@@ -72,22 +72,32 @@ class ShelfItemWidget(CardWidget):
                 # 达到阈值，在此处通过信号将拖拽意图发送出去
                 self.item_drag_signal.emit(self.item, event.globalPosition().toPoint())
                 self._press_pos = None  # 重置, 防止重复触发
-                print(self.item)
             super().mouseMoveEvent(event)
 
     def toggle_selection(self):
         # 将当前数据和最新的选中状态一起通过信号发射出去
         self.selection_signal.emit((self.item, self.is_selected))
 
-    def set_selected_style(self):
-        """根据 is_selected 的状态动态改变卡片样式"""
-        if self.is_selected:
-            self.setStyleSheet("""
+    def _update_style(self):
+        """根据 is_selected 的状态改变卡片样式"""
+        if self.is_selected: # 选中状态
+            style = """
                 ShelfItemWidget {
-                    border: 2px solid #0078d4;
-                    border-radius: 6px;
-                    background-color: rgba(0, 120, 212, 0.08);
+                    background-color: rgba(0, 120, 212, 15%);
+                    border: 2px solid #0078D4;
+                    border-radius: 8px;
                 }
-            """)
+            """
         else:
-            self.setStyleSheet("")
+            style = """
+                ShelfItemWidget {
+                    background-color: #F9F9F9;
+                    border: 1px solid #E1E1E1;
+                    border-radius: 8px;
+                }
+                ShelfItemWidget:hover {
+                    background-color: #F3F3F3;
+                    border: 1px solid #C7C7C7;
+                }
+            """
+        self.setStyleSheet(style)
