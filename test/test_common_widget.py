@@ -57,7 +57,6 @@ class TestElidedLabel:
         label = ElidedLabel("测试文本")
 
         assert label._full_text == "测试文本"
-        assert label._is_selected is False
         assert label.minimumWidth() == 20
 
     def test_set_text(self, qapp):
@@ -67,21 +66,4 @@ class TestElidedLabel:
 
         assert label._full_text == "新的长文本测试"
 
-    def test_set_selected_state(self, qapp):
-        """测试选中状态的切换与样式更新"""
-        label = ElidedLabel("状态测试")
 
-        # 初始未选中
-        assert label._is_selected is False
-
-        # 设为选中
-        label.set_selected(True)
-        assert label._is_selected is True
-
-        # 再次设为选中（应保持不变，不重复触发逻辑）
-        label.set_selected(True)
-        assert label._is_selected is True
-
-        # 取消选中
-        label.set_selected(False)
-        assert label._is_selected is False

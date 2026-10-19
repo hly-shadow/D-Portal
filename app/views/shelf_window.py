@@ -1,9 +1,8 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-
+"""D-Portal 主视图, 只负责界面和转发用户操作, 不创建 Model/Controller."""
 from PySide6.QtCore import Qt, Signal, QPoint
 from PySide6.QtWidgets import QApplication, QVBoxLayout
-
 from qframelesswindow import AcrylicWindow
 
 from app.components.event_filter import MainWindowEventFilter
@@ -12,40 +11,42 @@ from app.views.components.bottom_widget import FooterComponent
 from app.views.components.middle_widget import MiddleComponent
 from app.views.components.top_widget import TopComponent
 
-
-from app.models.shelf_manager import ShelfManager
-
 from app.config import APP_NAME, SHELF_WIDTH, SHELF_HEIGHT
 
 class ShelfWindow(AcrylicWindow):
     item_delete_requested = Signal(object)
-    select_requested = Signal(object)
-    drag_requested = Signal(object, QPoint)
+    item_selection_requested = Signal(object, bool)
+    item_drag_requested = Signal(object, QPoint)
+    close_requested = Signal()
+    external_drop_requested = Signal(object)
+    window_drag_started = Signal(QPoint)
+    window_drag_moved = Signal(object)
+    window_drag_ended = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.shelf_manager = ShelfManager()
         self.top_component = TopComponent(parent=self)
         self.middle_component = MiddleComponent(parent=self)
         self.footer_component = FooterComponent(parent=self)
 
-        # 【关键】在这里进行局部导入，避开顶部循环依赖
-        from app.controllers.shelf_controller import ShelfController
-        self.controller = ShelfController(self.shelf_manager, self)
+        self.top_component.close_requested.connect(self.close_requested)
+        self.middle_component.delete_signal.connect(self.item_delete_requested)
+        self.middle_component.selection_changed_signal.connect(self.item_selection_requested)
+        self.middle_component.item_drag_signal.connect(self.item_drag_requested)
 
-        self.middle_component.delete_signal.connect(self.controller.handle_item_delete)
-        self.middle_component.selection_changed_signal.connect(
-            self.controller.handle_item_selection_changed
-        )
-        self.middle_component.item_drag_signal.connect(
-            self.controller.handle_item_drag_out
-        )
         # 初始化管理器
         self.dock_manager = EdgeAutoDockManager(self, trigger_margin=15, hide_margin=5)
-        self.event_filter = MainWindowEventFilter(self, self.controller)
+        self.event_filter = MainWindowEventFilter(self)
         self.installEventFilter(self.event_filter)
-        # 2. 关键：监听系统的调色板变化信号（当用户在系统设置里切深色/浅色时，自动触发）
-        QApplication.instance().paletteChanged.connect(self.on_palette_changed)
+        self.event_filter.window_drag_started.connect(self.window_drag_started)
+        self.event_filter.window_drag_moved.connect(self.window_drag_moved)
+        self.event_filter.window_drag_ended.connect(self.window_drag_ended)
+        self.event_filter.external_drop_requested.connect(self.external_drop_requested)
+        # 关键：监听系统的调色板变化信号（当用户在系统设置里切深色/浅色时, 自动触发）
+        app = QApplication.instance()
+        if isinstance(app, QApplication):
+            app.paletteChanged.connect(self.on_palette_changed)
+
         self._init_window()
         self._init_ui()
 
@@ -59,11 +60,13 @@ class ShelfWindow(AcrylicWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.titleBar.hide()
 
-        screen = QApplication.primaryScreen().availableGeometry()
-        self.dock_manager.set_dock_edge(DockEdge.RIGHT)
-        initial_x = screen.right()
-        initial_y = screen.top() + (screen.height() - SHELF_HEIGHT) // 2
-        self.setGeometry(initial_x, initial_y, SHELF_WIDTH, SHELF_HEIGHT)
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            geometry = screen.availableGeometry()
+            self.dock_manager.set_dock_edge(DockEdge.RIGHT)
+            initial_x = geometry.right()
+            initial_y = geometry.top() + (geometry.height() - SHELF_HEIGHT) // 2
+            self.setGeometry(initial_x, initial_y, SHELF_WIDTH, SHELF_HEIGHT)
         self.setFixedSize(SHELF_WIDTH, SHELF_HEIGHT)
         self.setAcceptDrops(True)  # 允许接收外部拖入
 
@@ -74,33 +77,29 @@ class ShelfWindow(AcrylicWindow):
         main_layout.setSpacing(4)
         # 1.加载顶部组件
         main_layout.addWidget(self.top_component)
-
         # 2.加载中间滚动区域组件
         main_layout.addWidget(self.middle_component, 1)
-
         # 3.加载底部卡片组件
         main_layout.addWidget(self.footer_component)
 
-    def render_items(self, items: list):
+    # Controller 可调用的公开视图 API，不暴露内部子组件给业务层。
+    def add_items(self, items: list):
         self.middle_component.add_item_widget(items)
 
-    def remove_item_widget_by_data(self, item):
-        """
-        根据数据对象, 在 MiddleComponent 组件中找到对应的卡片并销毁它
-        """
+
+    def remove_item(self, item):
         self.middle_component.remove_item_widget(item)
 
-    def update_count(self, count: int):
+
+    def set_item_count(self, count: int):
         self.footer_component.update_count(count)
 
 
-    def on_palette_changed(self, palette):
-        """系统深浅色主题切换时的回调槽函数"""
+    def clear_selection(self):
+        self.middle_component.clear_selection()
 
-        # 同时通知各个子组件（卡片列表等）刷新样式
-        if hasattr(self, "middle_component"):
-            self.middle_component.apply_theme_style()
-        if hasattr(self, "top_component"):
-            self.top_component.apply_theme_style()
-        if hasattr(self, "footer_component"):
-            self.footer_component.apply_theme_style()
+
+    def on_palette_changed(self, _palette):
+        self.middle_component.apply_theme_style()
+        self.top_component.apply_theme_style()
+        self.footer_component.apply_theme_style()

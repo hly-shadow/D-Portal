@@ -1,129 +1,99 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from PySide6.QtCore import QPoint, Qt, QUrl
+import pytest
+from PySide6.QtCore import QPoint, Qt
 from PySide6.QtWidgets import QApplication
 
 from app.models.data_model import ShelfItem, ItemType
+from app.models.shelf_manager import ShelfManager
 from app.controllers.shelf_controller import ShelfController
 
 
 @pytest.fixture(scope="session")
 def qapp():
-    """确保整个测试会话中存在一个 QApplication 实例"""
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    yield app
+    app = QApplication.instance() or QApplication([])
+    return app
+
+
+class FakeSignal:
+    def connect(self, callback):
+        pass
 
 
 @pytest.fixture
-def mock_shelf_manager():
-    """Mock ShelfManager"""
-    manager = MagicMock()
-    manager.count.return_value = 0
-    return manager
+def view():
+    result = MagicMock()
+    for name in (
+        "item_delete_requested", "item_selection_requested", "item_drag_requested",
+        "close_requested", "window_drag_started", "window_drag_moved",
+        "window_drag_ended", "external_drop_requested",
+    ):
+        setattr(result, name, FakeSignal())
+    result.dock_manager = MagicMock()
+    return result
 
 
 @pytest.fixture
-def mock_window():
-    """Mock ShelfWindow 及其关联组件"""
-    window = MagicMock()
-    # 模拟信号连接
-    window.item_delete_requested = MagicMock()
-    window.select_requested = MagicMock()
-    window.top_component.close_requested = MagicMock()
-    return window
+def setup_controller(qapp, view):
+    manager = ShelfManager()
+    controller = ShelfController(manager, view)
+    return controller, manager, view
 
 
-@pytest.fixture
-def controller(qapp, mock_shelf_manager, mock_window):
-    """初始化 ShelfController 实例"""
-    return ShelfController(mock_shelf_manager, mock_window)
+def test_selection_uses_stable_keys(setup_controller):
+    controller, _manager, _view = setup_controller
+    first = ShelfItem("a", ItemType.FILE, path="/tmp/a")
+    controller.handle_item_selection_changed(first, True)
+    assert first.get_unique_key() in controller._selected_keys
+    controller.handle_item_selection_changed(first, False)
+    assert first.get_unique_key() not in controller._selected_keys
 
 
-def test_handle_incoming_data_urls(controller, mock_shelf_manager, mock_window):
-    """测试处理传入的 URL 数据（文件/目录拖入）"""
-    # 准备 MIME 数据
-    mock_mime = MagicMock()
-    mock_mime.hasUrls.return_value = True
-
-    # 模拟 QUrl
-    mock_url = MagicMock(spec=QUrl)
-    # 假设拖入了一个虚拟路径
-    mock_url.toLocalFile.return_value = "/path/to/test_file.txt"
-    mock_mime.urls.return_value = [mock_url]
-
-    # 模拟 manager.add_item_filter 返回添加成功的项
-    added_item = ShelfItem(name="test_file.txt", path="/path/to/test_file.txt", item_type=ItemType.FILE)
-    mock_shelf_manager.add_item_filter.return_value = [added_item]
-    mock_shelf_manager.count.return_value = 1
-
-    # 执行
-    controller.handle_incoming_data(mock_mime)
-
-    # 验证
-    mock_shelf_manager.add_item_filter.assert_called_once()
-    mock_window.render_items.assert_called_once_with([added_item])
-    mock_window.update_count.assert_called_once_with(1)
-
-
-def test_handle_incoming_data_empty(controller, mock_shelf_manager):
-    """测试传入空的 MIME 数据"""
-    controller.handle_incoming_data(None)
-    mock_shelf_manager.add_item_filter.assert_not_called()
-
-
-def test_handle_item_delete(controller, mock_shelf_manager, mock_window):
-    """测试删除单项逻辑"""
-    item = ShelfItem(name="test.txt", path="/test.txt", item_type=ItemType.FILE)
-    mock_shelf_manager.count.return_value = 0
-
+def test_delete_updates_model_and_view(setup_controller):
+    controller, manager, view = setup_controller
+    item = ShelfItem("a", ItemType.FILE, path="/tmp/a")
+    manager.add_item_filter([item])
     controller.handle_item_delete(item)
-
-    mock_shelf_manager.remove_item.assert_called_once_with(item)
-    mock_window.remove_item_widget_by_data.assert_called_once_with(item)
-    mock_window.update_count.assert_called_once_with(0)
-
-
-def test_handle_item_selection_changed(controller):
-    """测试选中状态的维护（多选集合）"""
-    item1 = ShelfItem(name="1.txt", path="/1.txt", item_type=ItemType.FILE)
-    item2 = ShelfItem(name="2.txt", path="/2.txt", item_type=ItemType.FILE)
-
-    # 选中 item1 和 item2
-    controller.handle_item_selection_changed(item1, True)
-    controller.handle_item_selection_changed(item2, True)
-    assert item1 in controller._selected
-    assert item2 in controller._selected
-    assert len(controller._selected) == 2
-
-    # 取消选中 item1
-    controller.handle_item_selection_changed(item1, False)
-    assert item1 not in controller._selected
-    assert item2 in controller._selected
-    assert len(controller._selected) == 1
+    assert manager.count() == 0
+    view.remove_item.assert_called_once_with(item)
+    view.set_item_count.assert_called_once_with(0)
 
 
-def test_handle_drag_end(controller):
-    """测试拖拽结束清理状态"""
-    controller._drag_pos = QPoint(10, 10)
-    controller.handle_drag_end()
-    assert controller._drag_pos is None
+def test_incoming_data_adds_existing_local_file(setup_controller, tmp_path):
+    controller, manager, view = setup_controller
+    path = tmp_path / "example.txt"
+    path.write_text("test", encoding="utf-8")
+    mime = MagicMock()
+    mime.hasUrls.return_value = True
+    url = MagicMock()
+    url.isLocalFile.return_value = True
+    url.toLocalFile.return_value = str(path)
+    mime.urls.return_value = [url]
+
+    controller.handle_incoming_data(mime)
+    assert manager.count() == 1
+    view.add_items.assert_called_once()
+    view.set_item_count.assert_called_once_with(1)
 
 
-@patch("app.controllers.shelf_controller.QDrag")
-def test_handle_item_drag_out_single(mock_qdrag_class, controller, mock_shelf_manager, mock_window):
-    """测试单项向外拖拽（非多选或单选拖拽，复制后不删除原文件 - 假设 DropAction 为 CopyAction 且触发删除逻辑取决于实现）"""
-    # 注意：根据你的源码，只要 drop_action != IgnoreAction，就会执行删除原文件逻辑。
-    mock_drag_instance = mock_qdrag_class.return_value
-    mock_drag_instance.exec.return_value = Qt.DropAction.CopyAction
+def test_drag_out_only_removes_on_copy_action(setup_controller):
+    controller, manager, view = setup_controller
+    item = ShelfItem("a", ItemType.FILE, path="/tmp/a")
+    manager.add_item_filter([item])
+    with patch("app.controllers.shelf_controller.QDrag") as drag_class:
+        drag_class.return_value.exec.return_value = Qt.DropAction.IgnoreAction
+        controller.handle_item_drag_out(item, QPoint())
+    assert manager.count() == 1
+    view.remove_item.assert_not_called()
 
-    item = ShelfItem(name="file.txt", path="/file.txt", item_type=ItemType.FILE)
 
-    # 执行外发拖拽
-    controller.handle_item_drag_out(item, QPoint(0, 0))
-
-    # 验证是否调用了底层删除及视图移除
-    mock_shelf_manager.remove_item.assert_called_once_with(item)
-    mock_window.middle_component.remove_item_widget.assert_called_once_with(item)
-    mock_window.footer_component.update_count.assert_called_once_with(mock_shelf_manager.count())
+def test_drag_out_copy_removes_only_dragged_item(setup_controller):
+    controller, manager, view = setup_controller
+    first = ShelfItem("a", ItemType.FILE, path="/tmp/a")
+    second = ShelfItem("b", ItemType.FILE, path="/tmp/b")
+    manager.add_item_filter([first, second])
+    with patch("app.controllers.shelf_controller.QDrag") as drag_class:
+        drag_class.return_value.exec.return_value = Qt.DropAction.CopyAction
+        controller.handle_item_drag_out(first, QPoint())
+    assert manager.count() == 1
+    assert manager.get_item(second.get_unique_key()) == second
+    view.remove_item.assert_called_once_with(first)

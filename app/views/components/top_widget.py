@@ -22,7 +22,6 @@ class TopComponent(DraggableCardWidget):
     def __init__(self, title: str = "D-Portal", parent=None):
         super().__init__(orientation=Qt.Orientation.Horizontal, margins=(12,10,12,10), spacing=6, parent=parent)
         self.title = title
-
         self._init_ui()
 
     def _init_ui(self):
@@ -38,7 +37,6 @@ class TopComponent(DraggableCardWidget):
 
         title = SubtitleLabel(self.title,self)
         text_layout.addWidget(title)
-
 
         # 右侧关闭按钮
         close_btn = TransparentToolButton(self)

@@ -7,9 +7,6 @@ from enum import Enum
 from dataclasses import dataclass, field
 from typing import Optional
 
-from PySide6.QtGui import QIcon
-
-
 class ItemType(Enum):
     FILE = "file"
     DIRECTORY = "directory"
@@ -25,7 +22,6 @@ class ShelfItem:
     path: Optional[str] = None # 仅用于 FILE/DIRECTORY 的本地路径
     url: Optional[str] = None # 仅用于 URL 的网页链接
     content: Optional[str] = None # 仅用于 TEXT 的文本内容
-    icon: Optional[QIcon] = field(default=None, compare=False)
     # 内部缓存文本的 MD5,避免重复计算
     _text_hash: Optional[str] = field(init=False, repr=False, compare=False, default=None)
 
@@ -56,24 +52,18 @@ class ShelfItem:
                 return ""
             url = self.url.strip()
             parsed = urllib.parse.urlparse(url)
-            # 如果协议为空，临时加上 "//" 让 urlparse 能够正确识别域名和路径
-            if not parsed.scheme:
-                parsed = urllib.parse.urlparse("http://" + url)
 
-            scheme = parsed.scheme.lower()  # 如果没写协议，就是空字符串 ""
+            scheme = parsed.scheme.lower() # 如果没写协议，就是空字符串 ""
             netloc = parsed.netloc.lower()
-            path = parsed.path.lower().rstrip("/")
+            # 主机名/协议不区分大小写；路径保留原大小写和末尾斜杠
+            path = parsed.path
 
-            query_str = ""
-            if parsed.query:
-                query_params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
-                query_params.sort()
-                query_str = "?" + urllib.parse.urlencode(query_params)
+            query_str = f"?{parsed.query}" if parsed.query else ""
+            fragment_str = f"#{parsed.fragment}" if parsed.fragment else ""
 
             if scheme:
-                return f"{scheme}://{netloc}{path}{query_str}"
-            else:
-                return f"//{netloc}{path}{query_str}"
+                return f"{scheme}://{netloc}{path}{query_str}{fragment_str}"
+            return f"//{netloc}{path}{query_str}{fragment_str}"
 
         elif self.item_type == ItemType.TEXT:
             return self._text_hash if self._text_hash else ""

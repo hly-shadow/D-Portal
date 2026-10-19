@@ -60,7 +60,7 @@ class MiddleComponent(CardWidget):
                 item_card.delete_signal.connect(lambda temp=data:self.delete_signal.emit(temp))
 
                 item_card.selection_signal.connect(
-                    lambda payload, d=data: self.selection_changed_signal.emit(d, payload[1])
+                    lambda item, selected, d=data: self.selection_changed_signal.emit(d, selected)
                 )
 
                 item_card.item_drag_signal.connect(
@@ -71,6 +71,13 @@ class MiddleComponent(CardWidget):
                 self.item_layout.insertWidget(index, item_card)
         finally:
             self.setUpdatesEnabled(True)
+
+    def clear_selection(self):
+        for i in range(self.item_layout.count()):
+            layout_item = self.item_layout.itemAt(i)
+            widget = layout_item.widget() if layout_item else None
+            if widget and hasattr(widget, "set_selected"):
+                widget.set_selected(False, emit_signal=False)
 
     def apply_theme_style(self):
         self.scroll_area.setStyleSheet(f"""

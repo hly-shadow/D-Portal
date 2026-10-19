@@ -1,52 +1,51 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
-from typing import List, Dict, overload, Union
+"""纯业务数据管理, 不依赖 Qt 界面。"""
+
+from collections.abc import Iterable
 
 from app.models.data_model import ShelfItem
 
 class ShelfManager:
     def __init__(self):
-        self._items: Dict[str, ShelfItem] = {}
+        self._items: dict[str, ShelfItem] = {}
 
     @property
-    def items(self) -> Dict[str, ShelfItem]:
+    def items(self) -> dict[str, ShelfItem]:
+        """返回副本, 避免外部直接修改数据."""
         return self._items.copy()
 
-    def add_item_filter(self, items: List[ShelfItem]) -> List[ShelfItem]:
+    def add_item_filter(self, items: Iterable[ShelfItem]) -> list[ShelfItem]:
         """
-        过滤掉重复的数据, 并把合法的真·新数据加入到管理器中
-        返回需要 VIEW 层渲染的数据
+        过滤重复项目: 无效 key 的项目跳过, 不让单个坏数据中断整批操作.
         """
-        truly_new_items = []
+        added: list[ShelfItem] = []
         for item in items:
-            unique_key = item.get_unique_key()
-            if not unique_key:
-                raise ValueError("Item unique key cannot be empty or None.")
-            if unique_key not in self._items:
-                truly_new_items.append(item)
-                self._items[unique_key] = item
-            else:
-                print(f"检测到重复数据，已过滤: {unique_key}")
-        return truly_new_items
+            if not isinstance(item, ShelfItem):
+                continue
+            key = item.get_unique_key()
+            if not key or key in self._items:
+                continue
+            self._items[key] = item
+            added.append(item)
+        return added
 
-    @overload
-    def remove_item(self, target: ShelfItem) -> bool:
-        ...
-    @overload
-    def remove_item(self, target: str) -> bool:
-        ...
-
-    def remove_item(self, target: Union[ShelfItem, str]) -> bool:
+    def remove_item(self, target: ShelfItem | str) -> bool:
         if isinstance(target, ShelfItem):
             key = target.get_unique_key()
         elif isinstance(target, str):
             key = target
         else:
-            raise TypeError("remove_item 仅支持传入 ShelfItem 实例或 str 类型的 key")
-        if key in self._items:
-            del self._items[key]
-            return True
-        return False
+            raise TypeError("remove_item 仅支持传入 ShelfItem 实例或唯一键字符串")
+        return self._items.pop(key, None) is not None
+
+    def get_item(self, key: str) -> ShelfItem | None:
+        return self._items.get(key)
+
+    def get_items_by_keys(self, keys: Iterable[str]) -> list[ShelfItem]:
+        """按当前列表顺序返回指定 key 的项目."""
+        wanted = set(keys)
+        return [item for key, item in self._items.items() if key in wanted]
 
     def clear(self) -> None:
         self._items.clear()

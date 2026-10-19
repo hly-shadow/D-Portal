@@ -13,7 +13,7 @@ from app.views.components.common_widget import ElidedLabel
 
 class ShelfItemWidget(CardWidget):
     delete_signal = Signal(object)
-    selection_signal = Signal(object)
+    selection_signal = Signal(object, bool)
     item_drag_signal = Signal(object, QPoint)
 
     def __init__(self, item: ShelfItem, parent= None):
@@ -38,8 +38,10 @@ class ShelfItemWidget(CardWidget):
 
         # 获取系统原生图标
         provider = QFileIconProvider()
-        file_path = QFileInfo(self.item.path)
-        icon = provider.icon(file_path)
+        if self.item.path:
+            icon = provider.icon(QFileInfo(self.item.path))
+        else:
+            icon = provider.icon(QFileIconProvider.IconType.File)
         icon_label.setPixmap(icon.pixmap(32,32))
 
         # 中间: 文件名(支持省略过长的文件名)
@@ -58,13 +60,16 @@ class ShelfItemWidget(CardWidget):
     @override
     def mousePressEvent(self, e: QMouseEvent):
         if e.button() == Qt.MouseButton.RightButton:
-            self.is_selected = not self.is_selected
-            self.update_style()
-            self.toggle_selection()
+            self.set_selected(not self.is_selected)
             e.accept()
         elif e.button() == Qt.MouseButton.LeftButton:
             self._press_pos = e.globalPosition().toPoint()
         super().mousePressEvent(e)
+
+    @override
+    def mouseReleaseEvent(self, e: QMouseEvent):
+        self._press_pos = None
+        super().mouseReleaseEvent(e)
 
     @override
     def mouseMoveEvent(self, event: QMouseEvent):
@@ -80,9 +85,13 @@ class ShelfItemWidget(CardWidget):
                 self._press_pos = None  # 重置, 防止重复触发
             super().mouseMoveEvent(event)
 
-    def toggle_selection(self):
-        # 将当前数据和最新的选中状态一起通过信号发射出去
-        self.selection_signal.emit((self.item, self.is_selected))
+    def set_selected(self, selected: bool, emit_signal: bool = True):
+        if self.is_selected == selected:
+            return
+        self.is_selected = selected
+        self.update_style()
+        if emit_signal:
+            self.selection_signal.emit(self.item, self.is_selected)
 
     def update_style(self):
         colors = get_theme_colors()
