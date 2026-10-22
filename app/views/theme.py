@@ -4,31 +4,44 @@ from PySide6.QtGui import QGuiApplication
 from PySide6.QtCore import Qt
 
 THEMES = {
-    "light": {
-        # 1. 窗口与面板基础色
-        "window_bg": "#F3F3F3",  # 主窗口底色
-        "panel_bg": "#FFFFFF",  # 顶栏/底栏背景色
-        "panel_border": "#E1E1E1",  # 面板边框
+     "light": {
+        # 主窗口：浅蓝灰色
+        "window_bg": "#E9EDF4",
+        "panel_border": "#D3DCE8",
 
-        # 2. 中间滚动区域与容器
-        "middle_bg": "transparent",  # 中间滚动区保持通透，与底座融合
-        "middle_border": "#E1E1E1",  # 容器边框
+        # 标题栏与底部状态栏：纯白
+        "panel_bg": "#FFFFFF",
 
-        # 3. 卡片常规状态
-        "card_bg": "#FFFFFF",  # 卡片默认背景
-        "card_hover_bg": "#F8F9FA",  # 卡片鼠标悬浮背景
-        "card_border": "#E1E1E1",  # 卡片边框
+        # 中间内容区域：极浅蓝灰色
+        "middle_bg": "#F4F6FA",
+        "middle_border": "#DFE5ED",
 
-        # 4. 卡片选中状态
-        "selected_bg": "rgba(0, 120, 212, 10%)",  # 选中背景（浅蓝色微透）
-        "selected_border": "#0078D4",  # 选中边框
-        "selected_text": "#004085",  # 选中文字高亮色
+        # 文件卡片
+        "card_bg": "#FFFFFF",
+        "card_hover_bg": "#F7FAFF",
+        "card_border": "#D8E1ED",
 
-        # 5. 字体与常规文本
-        "text_color": "#212529",  # 主文本色
-        "sub_text_color": "#6C757D",  # 次级文本/统计栏文字
-        "font_family": '"Microsoft YaHei", "Segoe UI", sans-serif',
-        "radius": "8px",  # 统一个圆角
+        # 文件预览区域
+        "preview_bg": "#F6F8FB",
+
+        # 滚动条
+        "scrollbar": "#C7D0DD",
+
+        # 选中状态
+        "selected_bg": "#EDF4FF",
+        "selected_border": "#83ACF5",
+        "selected_text": "#245DA8",
+
+        # 文字
+        "text_color": "#1D2939",
+        "sub_text_color": "#65748B",
+
+        "font_family": (
+            '"Segoe UI", "Microsoft YaHei UI", sans-serif'
+        ),
+
+        "radius": "12px",
+        "card_radius": "10px",
     },
 
     "dark": {

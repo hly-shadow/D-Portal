@@ -1,32 +1,30 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QVBoxLayout
+from PySide6.QtWidgets import QHBoxLayout
 from qfluentwidgets import CardWidget, BodyLabel
 
 from app.views.theme import get_theme_colors
 
 
 class FooterComponent(CardWidget):
-    """展示底部分割线与数量统计的自定义组件"""
-
+    """底部轻量状态栏，暂时仅显示当前暂存条目数量."""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.count_label = None
+        self.setObjectName("FooterComponent")
+        self.setFixedHeight(32)
         self._init_ui()
+        self.apply_theme_style()
 
     def _init_ui(self):
         # 设置内部布局
-        bottom_layout = QVBoxLayout(self)
-        bottom_layout.setContentsMargins(10, 5, 10, 5)
-        bottom_layout.setSpacing(10)
-
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 4, 10, 4)
+        layout.setSpacing(6)
         self.count_label = BodyLabel(self)
         self.count_label.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-
         # 组装布局
-        bottom_layout.addWidget(self.count_label)
-
+        layout.addWidget(self.count_label)
         # 默认初始显示 0 items
         self.update_count(0)
 
@@ -42,5 +40,11 @@ class FooterComponent(CardWidget):
                 background-color: {colors["panel_bg"]};
                 border: 1px solid {colors["panel_border"]};
                 border-radius: {colors["radius"]};
+            }}
+            FooterComponent QLabel {{
+                color: {colors['sub_text_color']};
+                background: transparent;
+                border: none;
+                font-size: 12px;
             }}
         """)

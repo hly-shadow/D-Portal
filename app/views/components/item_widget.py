@@ -4,7 +4,7 @@ from typing import override
 
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtCore import Qt, QPoint, QFileInfo, Signal
-from PySide6.QtWidgets import QSizePolicy, QHBoxLayout, QLabel, QFileIconProvider
+from PySide6.QtWidgets import QSizePolicy, QHBoxLayout, QLabel, QFileIconProvider, QVBoxLayout, QWidget, QToolButton
 from qfluentwidgets import TransparentToolButton, FluentIcon, CardWidget
 
 from app.models.data_model import ShelfItem
@@ -16,46 +16,86 @@ class ShelfItemWidget(CardWidget):
     selection_signal = Signal(object, bool)
     item_drag_signal = Signal(object, QPoint)
 
+    CARD_MIN_WIDTH = 100
+    CARD_HEIGHT = 100
+    
     def __init__(self, item: ShelfItem, parent= None):
         super().__init__(parent)
         self.item = item
         self.is_selected = False
         self.is_hovered = False
         self._press_pos = None
-        self.setFixedHeight(65)
+        self.setObjectName("ShelfItemWidget")
+        self.setFixedSize(self.CARD_MIN_WIDTH, self.CARD_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMouseTracking(True)
         self._init_ui()
         self.update_style()
 
     def _init_ui(self):
-        main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(12,8,12,8)
-        main_layout.setSpacing(12)
+        root = QVBoxLayout(self)
+        root.setContentsMargins(8,8,8,8)
+        root.setSpacing(5)
+        # 文件预览/图标区域.使用系统原生文件图标.
+        self.preview = QWidget(self)
+        self.preview.setObjectName("ShelfItemPreview")
+        self.preview.setFixedHeight(85)
+        preview_layout = QVBoxLayout(self.preview)
+        preview_layout.setContentsMargins(0,0,0,0)
+        preview_layout.setSpacing(0)
 
-        icon_label = QLabel(self)
-        icon_label.setFixedSize(40,48)
-        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        # 获取系统原生图标
+        icon_row = QHBoxLayout()
+        icon_row.setContentsMargins(0,0,0,0)
+        icon_row.addStretch(1)
+        self.icon_label = QLabel(self.preview)
+        self.icon_label.setObjectName("ShelfItemIcon")
+        self.icon_label.setFixedSize(48,48)
+        self.icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         provider = QFileIconProvider()
         if self.item.path:
             icon = provider.icon(QFileInfo(self.item.path))
         else:
             icon = provider.icon(QFileIconProvider.IconType.File)
-        icon_label.setPixmap(icon.pixmap(32,32))
+        self.icon_label.setPixmap(icon.pixmap(44,44))
+        icon_row.addWidget(self.icon_label)
+        icon_row.addStretch(1)
+        preview_layout.addStretch(1)
+        preview_layout.addLayout(icon_row)
+        preview_layout.addStretch(1)
 
-        # 中间: 文件名(支持省略过长的文件名)
-        self.name_label = ElidedLabel(self.item.name)
+        self.name_label = ElidedLabel(self.item.name, self)
         self.name_label.setObjectName("ShelfItemNameLabel")
+        self.name_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.name_label.setFixedHeight(22)
+        # 操作按钮覆盖在卡片右上角,仅悬停/选中时显示,避免占用文件名空间.
+        self.actions = QWidget(self)
+        self.actions.setObjectName("ShelfItemActions")
+        actions_layout = QHBoxLayout(self.actions)
+        actions_layout.setContentsMargins(0,0,0,0)
+        actions_layout.setSpacing(3)
+        self.delete_btn = QToolButton(self.actions)
+        self.delete_btn.setObjectName("ShelfItemDeleteButton")
+        self.delete_btn.setIcon(FluentIcon.DELETE.icon())
+        self.delete_btn.setToolTip("从 D-Portal 移除")
+        self.delete_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.delete_btn.setFixedSize(26,26)
+        self.delete_btn.clicked.connect(lambda: self.delete_signal.emit(self.item))
+        actions_layout.addWidget(self.delete_btn)
+        self.actions.adjustSize()
+        self.actions.move(self.width() - self.actions.sizeHint().width() - 5, 5)
+        self.actions.hide()
 
-        delete_btn = TransparentToolButton()
-        delete_btn.setIcon(FluentIcon.DELETE)
-        delete_btn.setFixedSize(28, 28)
-        delete_btn.clicked.connect(lambda :self.delete_signal.emit(self.item))
+        root.addWidget(self.preview, 1)
+        root.addWidget(self.name_label, 0)
 
-        main_layout.addWidget(icon_label)
-        main_layout.addWidget(self.name_label, 1)
-        main_layout.addWidget(delete_btn)
+    @override
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, "actions"):
+            self.actions.adjustSize()
+            self.actions.move(self.width() - self.actions.sizeHint().width() - 5, 5)
+        if hasattr(self, "name_label"):
+            self.name_label._update_elided_text()
 
     @override
     def mousePressEvent(self, e: QMouseEvent):
@@ -75,9 +115,8 @@ class ShelfItemWidget(CardWidget):
     def mouseMoveEvent(self, event: QMouseEvent):
         if not (event.buttons() & Qt.MouseButton.LeftButton):
             return
-
-        drag_threshold = 15
         if self._press_pos is not None:
+            drag_threshold = 15
             # 检查移动距离是否超过系统规定的拖拽阈值
             if (event.globalPosition().toPoint() - self._press_pos).manhattanLength() > drag_threshold:
                 # 达到阈值，在此处通过信号将拖拽意图发送出去
@@ -92,6 +131,14 @@ class ShelfItemWidget(CardWidget):
         self.update_style()
         if emit_signal:
             self.selection_signal.emit(self.item, self.is_selected)
+
+    def set_card_width(self, width:int):
+        self.setFixedSize(width, self.CARD_HEIGHT)
+        if hasattr(self, "actions"):
+            self.actions.adjustSize()
+            self.actions.move(self.width() - self.actions.width() - 5, 5)
+        if hasattr(self, "name_label"):
+            self.name_label._update_elided_text()
 
     def update_style(self):
         colors = get_theme_colors()
@@ -108,21 +155,45 @@ class ShelfItemWidget(CardWidget):
 
         text_color = colors["text_color"]
         font_family = colors["font_family"]
-
+        radius = colors.get("card_radius", "10px")
         self.setStyleSheet(f"""
             ShelfItemWidget {{
                 background-color: {bg};
                 border: 1px solid {border};
-                border-radius: 6px;
+                border-radius: {radius};
             }}
-            ShelfItemWidget #ShelfItemNameLabel {{
+            ShelfItemWidget QWidget#ShelfItemPreview{{
+                background-color: {colors.get('preview_bg', '#F7F9FC')};
+                border: none;
+                border-radius: 7px;
+            }}
+            ShelfItemWidget QLabel#ShelfItemIcon,
+            ShelfItemWidget QLabel#ShelfItemNameLabel {{
+                background-color: transparent;
+                border: none;
+            }}
+            ShelfItemWidget QLabel#ShelfItemNameLabel {{
                 color: {text_color};
                 font-family: {font_family};
-                font-size: 14px;
-                font-weight: bold;
-                background-color: transparent;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QToolButton#ShelfItemDeleteButton {{
+                background-color: rgba(255, 255, 255, 235);
+                color: #596273;
+                border: 1px solid #E2E6EC;
+                border-radius: 7px;
+                padding: 3px;
+            }}
+            QToolButton#ShelfItemDeleteButton:hover {{
+                background-color: #FDECEC;
+                color: #C93737;
+                border-color: #F3CACA;
             }}
         """)
+        if hasattr(self, "actions"):
+            self.actions.setVisible(self.is_hovered or self.is_selected)
+
     @override
     def enterEvent(self, e):
         super().enterEvent(e)

@@ -5,8 +5,8 @@ from pathlib import Path
 
 APP_NAME = "D-Portal"
 
-SHELF_WIDTH = 300
-SHELF_HEIGHT = 600
+SHELF_WIDTH = 500
+SHELF_HEIGHT = 440
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
