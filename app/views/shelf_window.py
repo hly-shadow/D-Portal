@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """D-Portal 主视图, 只负责界面和转发用户操作, 不创建 Model/Controller."""
 from PySide6.QtCore import Qt, Signal, QPoint
-from PySide6.QtGui import QPainterPath, QPainter, QBitmap
+from PySide6.QtGui import QPainterPath, QPainter, QBitmap, QGuiApplication
 from PySide6.QtWidgets import QApplication, QVBoxLayout
 from qframelesswindow import AcrylicWindow
 
@@ -13,6 +13,8 @@ from app.views.components.middle_widget import MiddleComponent
 from app.views.components.top_widget import TopComponent
 
 from app.config import APP_NAME, SHELF_WIDTH, SHELF_HEIGHT
+from app.views.theme import get_theme_colors
+
 
 class ShelfWindow(AcrylicWindow):
     item_delete_requested = Signal(object)
@@ -43,10 +45,12 @@ class ShelfWindow(AcrylicWindow):
         self.event_filter.window_drag_moved.connect(self.window_drag_moved)
         self.event_filter.window_drag_ended.connect(self.window_drag_ended)
         self.event_filter.external_drop_requested.connect(self.external_drop_requested)
-        # 关键：监听系统的调色板变化信号（当用户在系统设置里切深色/浅色时, 自动触发）
-        app = QApplication.instance()
-        if isinstance(app, QApplication):
-            app.paletteChanged.connect(self.on_palette_changed)
+        # 统一监听系统浅色 / 深色模式变化
+        self._theme_scheme = None  # 当前实际应用的主题，由统一入口维护
+        self._style_hints = QGuiApplication.styleHints()
+        self._style_hints.colorSchemeChanged.connect(
+            self.on_color_scheme_changed
+        )
 
         self._init_window()
         self._init_ui()
@@ -103,20 +107,11 @@ class ShelfWindow(AcrylicWindow):
     def clear_selection(self):
         self.middle_component.clear_selection()
 
-    def apply_theme_style(self):
-        # 只设置主窗口属性，背景由 paintEvent 负责绘制
-        self.setObjectName("ShelfWindow")
-        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-
-        self.middle_component.apply_theme_style()
-        self.top_component.apply_theme_style()
-        self.footer_component.apply_theme_style()
-
     def paintEvent(self, event):
         from PySide6.QtGui import QPainter, QColor, QPainterPath
         from app.views.theme import get_theme_colors
 
-        colors = get_theme_colors()
+        colors = get_theme_colors(self._theme_scheme)
 
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -176,3 +171,40 @@ class ShelfWindow(AcrylicWindow):
         painter.end()
 
         self.setMask(mask)
+
+
+    def apply_theme_style(self, scheme: str | None = None):
+        """统一刷新主窗口及所有子组件的主题。"""
+        from app.views.theme import (
+            get_current_color_scheme,
+            get_theme_colors,
+        )
+        # 只设置主窗口属性，背景由 paintEvent 负责绘制
+        # self.setObjectName("ShelfWindow")
+        # self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        if scheme is None:
+            scheme = get_current_color_scheme()
+        self._theme_scheme = scheme
+        colors = get_theme_colors(scheme)
+
+        self.setStyleSheet(f"""
+            ShelfWindow {{
+                background: transparent;
+                background-color: {colors["window_bg"]};
+                border: 1px solid {colors["window_border"]};
+                border-radius: 16px;
+            }}
+        """)
+
+        self.top_component.apply_theme_style(scheme)
+        self.middle_component.apply_theme_style(scheme)
+        self.footer_component.apply_theme_style(scheme)
+
+    def on_color_scheme_changed(self, scheme):
+        """系统主题变化时，统一刷新整棵界面。"""
+        from PySide6.QtCore import Qt
+
+        if scheme == Qt.ColorScheme.Dark:
+            self.apply_theme_style("dark")
+        else:
+            self.apply_theme_style("light")

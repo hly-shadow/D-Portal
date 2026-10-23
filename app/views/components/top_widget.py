@@ -47,22 +47,42 @@ class TopComponent(DraggableCardWidget):
         self.layout_box.addStretch(1)
         self.layout_box.addWidget(close_btn, 0, Qt.AlignmentFlag.AlignVCenter)
 
-    def apply_theme_style(self):
-        colors = get_theme_colors()
+    def apply_theme_style(self, scheme: str | None = None):
+        if scheme is None:
+            from app.views.theme import get_current_color_scheme
+            scheme = get_current_color_scheme()
+        self._theme_scheme = scheme
+        colors = get_theme_colors(scheme)
+
         self.setStyleSheet(f"""
             TopComponent {{
-                background-color: {colors['panel_bg']};
-                border: 1px solid {colors['panel_border']};
-                border-radius: 12px;
+                background-color: {colors["panel_bg"]};
+                border: 1px solid {colors["panel_border"]};
+                border-radius: {colors["radius"]};
             }}
-            TopComponent QToolButton {{
+
+            TopComponent QLabel#AppTitle {{
+                color: {colors["text_color"]};
+                font-size: 18px;
+                font-weight: 600;
                 background: transparent;
                 border: none;
-                border-radius: 7px;
-                color: {colors['text_color']};
             }}
+
+            TopComponent QToolButton {{
+                background-color: transparent;
+                border: none;
+                border-radius: 7px;
+                color: {colors["text_color"]};
+            }}
+
             TopComponent QToolButton:hover {{
-                background-color: {('#FDECEC' if colors is not None and colors['text_color'] == '#20242B' else '#513238')};
-                color: {('#C93737' if colors['text_color'] == '#20242B' else '#FFB4B4')};
+                background-color: {colors["danger_bg"]};
+                color: {colors["danger_text"]};
+            }}
+
+            TopComponent QToolButton:pressed {{
+                background-color: {colors["danger_hover_bg"]};
+                color: {colors["danger_text"]};
             }}
         """)

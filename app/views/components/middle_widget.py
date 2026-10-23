@@ -81,12 +81,12 @@ class MiddleComponent(CardWidget):
         card_width = (
             available_width - spacing * (columns - 1)
         ) // columns
+        # 缓存包含卡片数量，确保窗口宽度不变时新增卡片也会重新布局。
+        layout_state = (viewport_width, columns, card_width, len(widgets))
         # 防止反复 resize 时无意义地重排
-        if getattr(self, "_last_grid_width", None) == (
-                viewport_width, columns, card_width
-        ):
+        if getattr(self, "_last_grid_width", None) == layout_state:
             return
-
+        self._last_grid_state = layout_state
         self._last_grid_width = (
             viewport_width, columns, card_width
         )
@@ -150,38 +150,61 @@ class MiddleComponent(CardWidget):
         for widget in self._item_widgets.values():
             widget.set_selected(False, emit_signal=False)
 
-    def apply_theme_style(self):
-        colors = get_theme_colors()
+    def apply_theme_style(self, scheme: str | None = None):
+        if scheme is None:
+            from app.views.theme import get_current_color_scheme
+            scheme = get_current_color_scheme()
+        self._theme_scheme = scheme
+        colors = get_theme_colors(scheme)
+
         self.setStyleSheet(f"""
             MiddleComponent {{
-                background-color: {colors.get('middle_bg', 'transparent')};
-                border: 1px solid {colors['middle_border']};
-                border-radius: 10px;
+                background-color: {colors["middle_bg"]};
+                border: 1px solid {colors["middle_border"]};
+                border-radius: {colors["radius"]};
             }}
+
             QScrollArea#ShelfScrollArea {{
                 background: transparent;
                 border: none;
             }}
+
             QScrollArea#ShelfScrollArea QWidget#qt_scrollarea_viewport {{
-                background: transparent;
+                background-color: {colors["middle_bg"]};
                 border: none;
             }}
+
+            QWidget#ShelfGridContainer {{
+                background-color: {colors["middle_bg"]};
+                border: none;
+            }}
+
             QScrollBar:vertical {{
                 background: transparent;
                 width: 8px;
                 margin: 4px 0 4px 0;
             }}
+
             QScrollBar::handle:vertical {{
-                background: {colors.get('scrollbar', '#C8CDD5')};
+                background: {colors["scrollbar"]};
                 min-height: 28px;
                 border-radius: 4px;
             }}
-            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+
+            QScrollBar::handle:vertical:hover {{
+                background: {colors["scrollbar_hover"]};
+            }}
+
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {{
                 height: 0px;
             }}
-            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {{
+
+            QScrollBar::add-page:vertical,
+            QScrollBar::sub-page:vertical {{
                 background: transparent;
             }}
         """)
+
         for widget in self._item_widgets.values():
-            widget.update_style()
+            widget.apply_theme_style(scheme)

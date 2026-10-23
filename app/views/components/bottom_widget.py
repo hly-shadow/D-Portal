@@ -33,16 +33,18 @@ class FooterComponent(CardWidget):
         text = f"{count} item" if count == 1 else f"{count} items"
         self.count_label.setText(text)
 
-    def apply_theme_style(self):
-        colors = get_theme_colors()
+    def apply_theme_style(self, scheme: str | None = None):
+        colors = get_theme_colors(scheme)
+
         self.setStyleSheet(f"""
             FooterComponent {{
                 background-color: {colors["panel_bg"]};
                 border: 1px solid {colors["panel_border"]};
                 border-radius: {colors["radius"]};
             }}
+
             FooterComponent QLabel {{
-                color: {colors['sub_text_color']};
+                color: {colors["sub_text_color"]};
                 background: transparent;
                 border: none;
                 font-size: 12px;

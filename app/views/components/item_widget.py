@@ -25,12 +25,13 @@ class ShelfItemWidget(CardWidget):
         self.is_selected = False
         self.is_hovered = False
         self._press_pos = None
+        self._theme_scheme = None
         self.setObjectName("ShelfItemWidget")
         self.setFixedSize(self.CARD_MIN_WIDTH, self.CARD_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setMouseTracking(True)
         self._init_ui()
-        self.update_style()
+        self.apply_theme_style()
 
     def _init_ui(self):
         root = QVBoxLayout(self)
@@ -128,7 +129,7 @@ class ShelfItemWidget(CardWidget):
         if self.is_selected == selected:
             return
         self.is_selected = selected
-        self.update_style()
+        self.apply_theme_style()
         if emit_signal:
             self.selection_signal.emit(self.item, self.is_selected)
 
@@ -140,69 +141,86 @@ class ShelfItemWidget(CardWidget):
         if hasattr(self, "name_label"):
             self.name_label._update_elided_text()
 
-    def update_style(self):
-        colors = get_theme_colors()
-        if self.is_selected:
-            bg = colors["selected_bg"]
-            border = colors["selected_border"]
-        elif self.is_hovered:
-            bg = colors["card_hover_bg"]
-            border = colors["selected_border"]
-        else:
-            # 支持鼠标悬浮判断 (可在 enterEvent/leaveEvent 中切换状态)
-            bg = colors["card_bg"]
-            border = colors["card_border"]
-
-        text_color = colors["text_color"]
-        font_family = colors["font_family"]
-        radius = colors.get("card_radius", "10px")
-        self.setStyleSheet(f"""
-            ShelfItemWidget {{
-                background-color: {bg};
-                border: 1px solid {border};
-                border-radius: {radius};
-            }}
-            ShelfItemWidget QWidget#ShelfItemPreview{{
-                background-color: {colors.get('preview_bg', '#F7F9FC')};
-                border: none;
-                border-radius: 7px;
-            }}
-            ShelfItemWidget QLabel#ShelfItemIcon,
-            ShelfItemWidget QLabel#ShelfItemNameLabel {{
-                background-color: transparent;
-                border: none;
-            }}
-            ShelfItemWidget QLabel#ShelfItemNameLabel {{
-                color: {text_color};
-                font-family: {font_family};
-                font-size: 13px;
-                font-weight: 600;
-            }}
-            QToolButton#ShelfItemDeleteButton {{
-                background-color: rgba(255, 255, 255, 235);
-                color: #596273;
-                border: 1px solid #E2E6EC;
-                border-radius: 7px;
-                padding: 3px;
-            }}
-            QToolButton#ShelfItemDeleteButton:hover {{
-                background-color: #FDECEC;
-                color: #C93737;
-                border-color: #F3CACA;
-            }}
-        """)
-        if hasattr(self, "actions"):
-            self.actions.setVisible(self.is_hovered or self.is_selected)
-
     @override
     def enterEvent(self, e):
         super().enterEvent(e)
         self.is_hovered = True
-        self.update_style()
+        self.apply_theme_style()
         e.accept()
     @override
     def leaveEvent(self, e):
         super().leaveEvent(e)
         self.is_hovered = False
-        self.update_style()
+        self.apply_theme_style()
         e.accept()
+
+    def apply_theme_style(self, scheme: str | None = None):
+        if scheme is None:
+            from app.views.theme import get_current_color_scheme
+            scheme = get_current_color_scheme()
+        self._theme_scheme = scheme
+        colors = get_theme_colors(scheme)
+
+        if self.is_selected:
+            bg = colors["selected_bg"]
+            border = colors["selected_border"]
+            text_color = colors["selected_text"]
+        elif self.is_hovered:
+            bg = colors["card_hover_bg"]
+            border = colors["selected_border"]
+            text_color = colors["text_color"]
+        else:
+            bg = colors["card_bg"]
+            border = colors["card_border"]
+            text_color = colors["text_color"]
+
+        self.setStyleSheet(f"""
+            ShelfItemWidget {{
+                background-color: {bg};
+                border: 1px solid {border};
+                border-radius: {colors["card_radius"]};
+            }}
+
+            ShelfItemWidget QWidget#ShelfItemPreview {{
+                background-color: {colors["preview_bg"]};
+                border: none;
+                border-radius: 7px;
+            }}
+
+            ShelfItemWidget QLabel#ShelfItemIcon,
+            ShelfItemWidget QLabel#ShelfItemNameLabel {{
+                background-color: transparent;
+                border: none;
+            }}
+
+            ShelfItemWidget QLabel#ShelfItemNameLabel {{
+                color: {text_color};
+                font-family: {colors["font_family"]};
+                font-size: 13px;
+                font-weight: 600;
+            }}
+
+            QToolButton#ShelfItemDeleteButton {{
+                background-color: {colors["panel_bg"]};
+                color: {colors["text_color"]};
+                border: 1px solid {colors["card_border"]};
+                border-radius: 7px;
+                padding: 3px;
+            }}
+
+            QToolButton#ShelfItemDeleteButton:hover {{
+                background-color: {colors["danger_bg"]};
+                color: {colors["danger_text"]};
+                border-color: {colors["danger_text"]};
+            }}
+
+            QToolButton#ShelfItemDeleteButton:pressed {{
+                background-color: {colors["danger_hover_bg"]};
+                color: {colors["danger_text"]};
+            }}
+        """)
+
+        if hasattr(self, "actions"):
+            self.actions.setVisible(
+                self.is_hovered or self.is_selected
+            )
